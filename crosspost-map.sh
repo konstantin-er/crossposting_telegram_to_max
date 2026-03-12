@@ -176,12 +176,18 @@ load_max_channels
 
 # --- Главное меню ---
 while true; do
+  MAPPING_COUNT=$(curl -s "$BASE_URL/api/admin/crosspost-channels?token=$BOT_TOKEN" | \
+    python3 -c "import json,sys; print(len(json.load(sys.stdin).get('channels',[])))" 2>/dev/null)
+  MAPPING_COUNT="${MAPPING_COUNT:-0}"
+
   echo ""
   echo "Текущие маппинги:"
   get_mappings
   echo ""
   echo "Команды:"
-  echo "  [a] Добавить маппинг"
+  if [ "$MAPPING_COUNT" -eq 0 ]; then
+    echo "  [a] Добавить маппинг"
+  fi
   echo "  [d] Удалить маппинг"
   echo "  [t] Включить/выключить маппинг (toggle)"
   echo "  [q] Выйти"
@@ -191,6 +197,10 @@ while true; do
 
   case "$CMD" in
     a|A)
+      if [ "$MAPPING_COUNT" -ge 1 ]; then
+        echo "⚠️  Бесплатная версия: достигнут лимит (1 связка). Удалите текущую, чтобы добавить новую."
+        continue
+      fi
       echo ""
 
       # --- Выбор TG канала ---

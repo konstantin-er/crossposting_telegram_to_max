@@ -8,18 +8,24 @@ const {
   logCrosspostFailed,
 } = require('./crosspost_db');
 
-// Convert Telegram message entities to MAX-compatible text.
+// Escape special HTML characters in plain text segments
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Convert Telegram message entities to MAX-compatible HTML.
 // Telegram entity offsets/lengths are in UTF-16 code units.
 // JS strings are UTF-16 internally, so we use raw string indices directly.
 function telegramEntitiesToMarkdown(text, entities) {
-  if (!entities || entities.length === 0) return text;
+  if (!entities || entities.length === 0) return escapeHtml(text);
 
   // Pass 1: collect text_link skip ranges first (needed to filter markers below)
   const skipRanges = []; // { start, end, replacement }
   for (const e of entities) {
     if (e.type === 'text_link') {
-      const visibleText = text.slice(e.offset, e.offset + e.length);
-      skipRanges.push({ start: e.offset, end: e.offset + e.length, replacement: `[${visibleText}](${e.url})` });
+      const visibleText = escapeHtml(text.slice(e.offset, e.offset + e.length));
+      const url = e.url.replace(/"/g, '&quot;');
+      skipRanges.push({ start: e.offset, end: e.offset + e.length, replacement: `<a href="${url}">${visibleText}</a>` });
     }
   }
 
@@ -32,12 +38,12 @@ function telegramEntitiesToMarkdown(text, entities) {
     const end = e.offset + e.length;
     let openStr, closeStr;
     switch (e.type) {
-      case 'bold':        openStr = '**'; closeStr = '**'; break;
-      case 'italic':      openStr = '_';  closeStr = '_';  break;
-      case 'code':        openStr = '`';  closeStr = '`';  break;
-      case 'pre':         openStr = '```\n'; closeStr = '\n```'; break;
-      case 'strikethrough': openStr = '~~'; closeStr = '~~'; break;
-      case 'blockquote':  openStr = '> '; closeStr = ''; break;
+      case 'bold':          openStr = '<b>';    closeStr = '</b>';    break;
+      case 'italic':        openStr = '<i>';    closeStr = '</i>';    break;
+      case 'underline':     openStr = '<u>';    closeStr = '</u>';    break;
+      case 'strikethrough': openStr = '<s>';    closeStr = '</s>';    break;
+      case 'code':          openStr = '<code>'; closeStr = '</code>'; break;
+      case 'pre':           openStr = '<pre>';  closeStr = '</pre>';  break;
       default: continue;
     }
 
@@ -70,7 +76,7 @@ function telegramEntitiesToMarkdown(text, entities) {
     for (const m of closing) result += m.str;
     for (const m of opening) result += m.str;
 
-    result += text[pos];
+    result += escapeHtml(text[pos]);
   }
 
   // Flush closing markers at end of string
@@ -118,6 +124,8 @@ async function buildAttachments(msg, bot) {
     } catch (e) {
       console.error('crosspost: failed to get document file', e.message);
     }
+  } else if (msg.link_preview_options?.url && /\.(jpe?g|png|gif|webp)(\?.*)?$/i.test(msg.link_preview_options.url)) {
+    attachments.push({ type: 'image', payload: { url: msg.link_preview_options.url } });
   }
 
   return attachments;

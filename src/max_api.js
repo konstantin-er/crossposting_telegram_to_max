@@ -4,7 +4,7 @@ const { config } = require('./config');
 // attachments: array of MAX attachment objects (e.g. { type: 'image', payload: { url } })
 async function sendMessageToChannel({ chatId, text, attachments = [] }) {
   const endpoint = `${config.maxApiBase}/messages?chat_id=${encodeURIComponent(chatId)}`;
-  const body = { format: 'markdown' };
+  const body = { format: 'html' };
   if (text) body.text = text;
   if (attachments.length > 0) body.attachments = attachments;
 

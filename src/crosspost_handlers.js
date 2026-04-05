@@ -42,8 +42,9 @@ function telegramEntitiesToMarkdown(text, entities) {
       case 'italic':        openStr = '<i>';    closeStr = '</i>';    break;
       case 'underline':     openStr = '<u>';    closeStr = '</u>';    break;
       case 'strikethrough': openStr = '<s>';    closeStr = '</s>';    break;
-      case 'code':          openStr = '<code>'; closeStr = '</code>'; break;
-      case 'pre':           openStr = '<pre>';  closeStr = '</pre>';  break;
+      case 'code':           openStr = '<code>';         closeStr = '</code>';         break;
+      case 'pre':            openStr = '<pre>';          closeStr = '</pre>';          break;
+      case 'blockquote':     openStr = '<blockquote>';   closeStr = '</blockquote>';   break;
       default: continue;
     }
 

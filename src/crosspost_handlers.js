@@ -1,5 +1,5 @@
 const { config } = require('./config');
-const { sendMessageToChannel } = require('./max_api');
+const { sendMessageToChannel, uploadVideoToMax } = require('./max_api');
 const {
   getCrosspostChannel,
   isCrosspostDuplicate,
@@ -106,17 +106,35 @@ async function buildAttachments(msg, bot) {
     }
   } else if (msg.video) {
     try {
-      const file = await bot.telegram.getFile(msg.video.file_id);
-      attachments.push({ type: 'video', payload: { url: tgFileUrl(file.file_path) } });
+      if (msg.video.file_size && msg.video.file_size > 20 * 1024 * 1024) {
+        console.warn('crosspost: video too large for Telegram Bot API (>20MB), skipping');
+      } else {
+        const file = await bot.telegram.getFile(msg.video.file_id);
+        const resp = await fetch(tgFileUrl(file.file_path));
+        const buffer = Buffer.from(await resp.arrayBuffer());
+        const mimeType = msg.video.mime_type || 'video/mp4';
+        const filename = file.file_path.split('/').pop() || 'video.mp4';
+        const { token } = await uploadVideoToMax(buffer, mimeType, filename);
+        attachments.push({ type: 'video', payload: { token } });
+      }
     } catch (e) {
-      console.error('crosspost: failed to get video file', e.message);
+      console.error('crosspost: failed to upload video', e.message);
     }
   } else if (msg.animation) {
     try {
-      const file = await bot.telegram.getFile(msg.animation.file_id);
-      attachments.push({ type: 'video', payload: { url: tgFileUrl(file.file_path) } });
+      if (msg.animation.file_size && msg.animation.file_size > 20 * 1024 * 1024) {
+        console.warn('crosspost: animation too large for Telegram Bot API (>20MB), skipping');
+      } else {
+        const file = await bot.telegram.getFile(msg.animation.file_id);
+        const resp = await fetch(tgFileUrl(file.file_path));
+        const buffer = Buffer.from(await resp.arrayBuffer());
+        const mimeType = msg.animation.mime_type || 'video/mp4';
+        const filename = file.file_path.split('/').pop() || 'video.mp4';
+        const { token } = await uploadVideoToMax(buffer, mimeType, filename);
+        attachments.push({ type: 'video', payload: { token } });
+      }
     } catch (e) {
-      console.error('crosspost: failed to get animation file', e.message);
+      console.error('crosspost: failed to upload animation', e.message);
     }
   } else if (msg.document) {
     try {

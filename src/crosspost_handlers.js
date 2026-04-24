@@ -150,6 +150,24 @@ async function buildAttachments(msg, bot) {
   return attachments;
 }
 
+const MAX_TEXT_CHARS = 3800;
+
+// Split HTML text into chunks of at most MAX_TEXT_CHARS characters.
+// Splits on newline boundaries where possible to avoid breaking words/sentences.
+function splitText(text) {
+  if (text.length <= MAX_TEXT_CHARS) return [text];
+  const chunks = [];
+  let remaining = text;
+  while (remaining.length > MAX_TEXT_CHARS) {
+    let splitAt = remaining.lastIndexOf('\n', MAX_TEXT_CHARS);
+    if (splitAt <= 0) splitAt = MAX_TEXT_CHARS;
+    chunks.push(remaining.slice(0, splitAt).trimEnd());
+    remaining = remaining.slice(splitAt).trimStart();
+  }
+  if (remaining.length > 0) chunks.push(remaining);
+  return chunks;
+}
+
 // Handle a single channel post
 async function handleChannelPost(msg, bot) {
   const tgChannelId = String(msg.chat.id);
@@ -177,10 +195,22 @@ async function handleChannelPost(msg, bot) {
     const text = telegramEntitiesToMarkdown(rawText, entities);
     const attachments = await buildAttachments(msg, bot);
 
-    const result = await sendMessageToChannel({ chatId: maxChannelId, text, attachments });
+    if (!text && attachments.length === 0) {
+      console.log(`crosspost: skipped empty post ${tgChannelId}/${tgMessageId}`);
+      logCrosspostFailed({ tgChannelId, tgMessageId, errorText: 'empty post: no text and no attachments' });
+      return;
+    }
+
+    const textChunks = splitText(text);
+    // First message: attachments + first chunk of text
+    const result = await sendMessageToChannel({ chatId: maxChannelId, text: textChunks[0], attachments });
     const maxMessageId = result?.message?.body?.mid || result?.body?.mid || result?.mid || null;
+    // Remaining chunks: text only
+    for (let i = 1; i < textChunks.length; i++) {
+      await sendMessageToChannel({ chatId: maxChannelId, text: textChunks[i], attachments: [] });
+    }
     logCrosspostPosted({ tgChannelId, tgMessageId, maxMessageId });
-    console.log(`crosspost: posted ${tgChannelId}/${tgMessageId} → MAX ${maxChannelId}`);
+    console.log(`crosspost: posted ${tgChannelId}/${tgMessageId} → MAX ${maxChannelId}${textChunks.length > 1 ? ` (${textChunks.length} parts)` : ''}`);
   } catch (err) {
     logCrosspostFailed({ tgChannelId, tgMessageId, errorText: err.message });
     console.error(`crosspost: failed ${tgChannelId}/${tgMessageId}`, err.message);
@@ -219,10 +249,20 @@ async function handleAlbum(messages, bot) {
       attachments.push(...atts);
     }
 
-    const result = await sendMessageToChannel({ chatId: maxChannelId, text, attachments });
+    if (!text && attachments.length === 0) {
+      console.log(`crosspost: album skipped empty post ${tgChannelId}/${tgMessageId}`);
+      logCrosspostFailed({ tgChannelId, tgMessageId, errorText: 'empty album: no text and no attachments' });
+      return;
+    }
+
+    const textChunks = splitText(text);
+    const result = await sendMessageToChannel({ chatId: maxChannelId, text: textChunks[0], attachments });
     const maxMessageId = result?.message?.body?.mid || result?.body?.mid || result?.mid || null;
+    for (let i = 1; i < textChunks.length; i++) {
+      await sendMessageToChannel({ chatId: maxChannelId, text: textChunks[i], attachments: [] });
+    }
     logCrosspostPosted({ tgChannelId, tgMessageId, maxMessageId });
-    console.log(`crosspost: album posted ${tgChannelId}/${tgMessageId} (${messages.length} items) → MAX ${maxChannelId}`);
+    console.log(`crosspost: album posted ${tgChannelId}/${tgMessageId} (${messages.length} items) → MAX ${maxChannelId}${textChunks.length > 1 ? ` (${textChunks.length} parts)` : ''}`);
   } catch (err) {
     logCrosspostFailed({ tgChannelId, tgMessageId, errorText: err.message });
     console.error(`crosspost: album failed ${tgChannelId}/${tgMessageId}`, err.message);

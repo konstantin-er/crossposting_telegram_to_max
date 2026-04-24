@@ -57,7 +57,10 @@ bot.on('channel_post', async (ctx) => {
   }
 });
 
-bot.launch();
+bot.launch().catch(err => {
+  console.error('Crosspost worker failed to start:', err.message);
+  process.exit(1);
+});
 console.log('Crosspost worker (Telegram long-polling) started');
 
 process.once('SIGINT', () => bot.stop('SIGINT'));

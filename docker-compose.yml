@@ -12,6 +12,7 @@ services:
   crosspost-tg-worker:
     build: .
     command: node src/telegram_worker.js
+    restart: unless-stopped
     env_file: .env
     environment:
       DB_PATH: /data/data.sqlite
